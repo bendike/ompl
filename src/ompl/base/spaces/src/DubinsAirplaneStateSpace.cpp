@@ -1,4 +1,8 @@
 #include "ompl/base/spaces/DubinsAirplaneStateSpace.h"
+#include "ompl/base/SpaceInformation.h"
+#include "ompl/util/Exception.h"
+#include <queue>
+#include <boost/math/constants/constants.hpp>
 
 using namespace ompl::base;
 
@@ -24,6 +28,8 @@ namespace ompl
                     x = x + (turnRadius - cos(seg / turnRadius));
                     y = y + sin(t / turnRadius);
                     break;
+                case NOHELIX:
+                    break;
             }
         }
 
@@ -42,7 +48,7 @@ namespace ompl
 
             const double dz = s2->getZ() - s1->getZ();
 
-            auto projectedPath = projectedStateSpace.dubins(state1, state2);
+            auto projectedPath = projectedStateSpace->as<DubinsStateSpace>()->dubins(state1, state2);
 
             if (projectedPath.length() * cos(climbAngle) > fabs(dz))
             {
@@ -53,10 +59,10 @@ namespace ompl
             {
                 int n = floor((fabs(dz) / tan(climbAngle) - projectedPath.length()) / (2 * M_PI * turnRadius));
                 double r = (fabs(dz) - projectedPath.length() * tan(climbAngle)) / (2 * M_PI_2 * n * tan(climbAngle));
-                double climbAngle = copysign(climbAngle, dz);
+                double climbAngle_ = copysign(climbAngle, dz);
                 Helix helix(HelixType(projectedPath.type_[2]), r, climbAngle, n);
 
-                return DubinsAirplanePath(projectedPath, helix, dubinsAirplanePathAltitudeType[1], climbAngle,
+                return DubinsAirplanePath(projectedPath, helix, dubinsAirplanePathAltitudeType[1], climbAngle_,
                                           turnRadius);
             }
         }
@@ -126,6 +132,8 @@ void ompl::base::DubinsAirplaneStateSpace::interpolate(const State *from, const 
                              s->getY() + sin(seg / path.helix.turnRadius));
                     s->setYaw(phi - seg);
                     break;
+                case NOHELIX:
+                    break;
             }
             s->setZ(s->getZ() + seg * tan(path.helix.climbAngle));
         }
@@ -138,17 +146,19 @@ void ompl::base::DubinsAirplaneStateSpace::interpolate(const State *from, const 
             switch (path.projectedPath.type_[i])
             {
                 case DubinsStateSpace::DUBINS_LEFT:
-                    s->setXY(s->getX() + sin(phi + v) - sin(phi), s->getY() - cos(phi + v) + cos(phi));
+                    s->setXY(s->getX() + (sin(phi + v) - sin(phi)) * turnRadius,
+                             s->getY() - (cos(phi + v) - cos(phi)) * turnRadius);
                     s->setZ(s->getZ() + v * tan(path.climbAngle));
                     s->setYaw(phi + v);
                     break;
                 case DubinsStateSpace::DUBINS_RIGHT:
-                    s->setXY(s->getX() - sin(phi - v) + sin(phi), s->getY() + cos(phi - v) - cos(phi));
+                    s->setXY(s->getX() - (sin(phi - v) - sin(phi)) * turnRadius,
+                             s->getY() + (cos(phi - v) - cos(phi)) * turnRadius);
                     s->setZ(s->getZ() + v * tan(path.climbAngle));
                     s->setYaw(phi - v);
                     break;
                 case DubinsStateSpace::DUBINS_STRAIGHT:
-                    s->setXY(s->getX() + v * cos(phi), s->getY() + v * sin(phi));
+                    s->setXY((s->getX() + v * cos(phi)) * turnRadius, (s->getY() + v * sin(phi) * turnRadius));
                     s->setZ(s->getZ() + v * tan(path.climbAngle));
                     break;
             }
@@ -162,4 +172,109 @@ void ompl::base::DubinsAirplaneStateSpace::interpolate(const State *from, const 
     state->as<StateType>()->setYaw(s->getYaw());
 
     freeState(s);
+}
+
+void ompl::base::DubinsAirplaneMotionValidator::defaultSettings()
+{
+    stateSpace_ = dynamic_cast<DubinsAirplaneStateSpace *>(si_->getStateSpace().get());
+    if (stateSpace_ == nullptr)
+        throw Exception("No state space for motion validator");
+}
+
+bool ompl::base::DubinsAirplaneMotionValidator::checkMotion(const State *s1, const State *s2,
+                                                            std::pair<State *, double> &lastValid) const
+{
+    /* assume motion starts in a valid configuration so s1 is valid */
+
+    bool result = true, firstTime = true;
+    DubinsAirplaneStateSpace::DubinsAirplanePath path;
+    int nd = stateSpace_->validSegmentCount(s1, s2);
+
+    if (nd > 1)
+    {
+        /* temporary storage for the checked state */
+        State *test = si_->allocState();
+
+        for (int j = 1; j < nd; ++j)
+        {
+            stateSpace_->interpolate(s1, s2, (double)j / (double)nd, firstTime, path, test);
+            if (!si_->isValid(test))
+            {
+                lastValid.second = (double)(j - 1) / (double)nd;
+                if (lastValid.first != nullptr)
+                    stateSpace_->interpolate(s1, s2, lastValid.second, firstTime, path, lastValid.first);
+                result = false;
+                break;
+            }
+        }
+        si_->freeState(test);
+    }
+
+    if (result)
+        if (!si_->isValid(s2))
+        {
+            lastValid.second = (double)(nd - 1) / (double)nd;
+            if (lastValid.first != nullptr)
+                stateSpace_->interpolate(s1, s2, lastValid.second, firstTime, path, lastValid.first);
+            result = false;
+        }
+
+    if (result)
+        valid_++;
+    else
+        invalid_++;
+
+    return result;
+}
+
+bool ompl::base::DubinsAirplaneMotionValidator::checkMotion(const State *s1, const State *s2) const
+{
+    /* assume motion starts in a valid configuration so s1 is valid */
+    if (!si_->isValid(s2))
+        return false;
+
+    bool result = true, firstTime = true;
+    DubinsAirplaneStateSpace::DubinsAirplanePath path;
+    int nd = stateSpace_->validSegmentCount(s1, s2);
+
+    /* initialize the queue of test positions */
+    std::queue<std::pair<int, int>> pos;
+    if (nd >= 2)
+    {
+        pos.emplace(1, nd - 1);
+
+        /* temporary storage for the checked state */
+        State *test = si_->allocState();
+
+        /* repeatedly subdivide the path segment in the middle (and check the middle) */
+        while (!pos.empty())
+        {
+            std::pair<int, int> x = pos.front();
+
+            int mid = (x.first + x.second) / 2;
+            stateSpace_->interpolate(s1, s2, (double)mid / (double)nd, firstTime, path, test);
+
+            if (!si_->isValid(test))
+            {
+                result = false;
+                break;
+            }
+
+            pos.pop();
+
+            if (x.first < mid)
+                pos.emplace(x.first, mid - 1);
+            if (x.second > mid)
+                pos.emplace(mid + 1, x.second);
+        }
+
+        si_->freeState(test);
+    }
+
+    if (result)
+        valid_++;
+    else
+        invalid_++;
+
+    return result;
 }

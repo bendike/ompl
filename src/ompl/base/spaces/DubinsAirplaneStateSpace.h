@@ -1,6 +1,7 @@
 #ifndef OMPL_BASE_SPACES_DUBINS_AIRPLANE_STATE_SPACE
 #define OMPL_BASE_SPACES_DUBINS_AIRPLANE_STATE_SPACE
 
+#include <stdio.h>
 #include <math.h>
 #include "ompl/base/spaces/SimpleSE3StateSpace.h"
 #include "ompl/base/spaces/DubinsStateSpace.h"
@@ -33,7 +34,12 @@ namespace ompl
             class Helix
             {
             public:
-                Helix(HelixType type, double r, double a, int n) : type(type), turnRadius(r), climbAngle(a), n(n)
+                int n = 0;
+                double turnRadius = 0.0;
+                double climbAngle = 0.0;
+                HelixType type;
+
+                Helix(HelixType type, double r, double a, int n) : n(n), turnRadius(r), climbAngle(a), type(type)
                 {
                 }
 
@@ -50,11 +56,6 @@ namespace ompl
                 void projectedInterpolate(double &x, double &y, double t) const;
 
                 void interpolate(double &x, double &y, double &z, double t) const;
-
-                int n = 0;
-                double turnRadius = 0.0;
-                double climbAngle = 0.0;
-                HelixType type;
             };
 
             class DubinsAirplanePath
@@ -70,7 +71,7 @@ namespace ompl
                 {
                 }
 
-                DubinsAirplanePath(DubinsStateSpace::DubinsPath projectedPath, Helix helix,
+                DubinsAirplanePath(DubinsStateSpace::DubinsPath &projectedPath, Helix helix,
                                    DubinsAirplanePathAltitudeType type, double climbAngle, double turnRadius)
                   : projectedPath(projectedPath)
                   , helix(helix)
@@ -80,7 +81,7 @@ namespace ompl
                 {
                 }
 
-                DubinsAirplanePath(DubinsStateSpace::DubinsPath projectedPath, DubinsAirplanePathAltitudeType type,
+                DubinsAirplanePath(DubinsStateSpace::DubinsPath &projectedPath, DubinsAirplanePathAltitudeType type,
                                    double climbAngle, double turnRadius)
                   : projectedPath(projectedPath)
                   , helix(NOHELIX, 0, 0, 0)
@@ -92,22 +93,23 @@ namespace ompl
 
                 double length() const
                 {
-                    return (projectedPath.length() / cos(climbAngle)) + helix.length();
+                    return (projectedPath.length() * turnRadius / cos(climbAngle)) + helix.length();
                 }
 
                 double projectedLength() const
                 {
-                    return projectedPath.length() + helix.projectedLength();
+                    return projectedPath.length() * turnRadius + helix.projectedLength();
                 }
             };
 
-            DubinsStateSpace projectedStateSpace;
+            StateSpacePtr projectedStateSpace;
             double climbAngle;
             double turnRadius;
 
             DubinsAirplaneStateSpace(double turnRadius, double climbAngle)
-              : projectedStateSpace(turnRadius, false), climbAngle(climbAngle), turnRadius(turnRadius)
+              : climbAngle(climbAngle), turnRadius(turnRadius)
             {
+                projectedStateSpace = std::make_shared<DubinsStateSpace>(turnRadius,false);
             }
 
             // OVERRIDES
@@ -148,6 +150,26 @@ namespace ompl
             DubinsAirplanePath dubins(const State *state1, const State *state2) const;
 
             void interpolate(const State *from, const DubinsAirplanePath &path, double t, State *state) const;
+        };
+
+        class DubinsAirplaneMotionValidator : public MotionValidator
+        {
+        public:
+            DubinsAirplaneMotionValidator(SpaceInformation *si) : MotionValidator(si)
+            {
+                defaultSettings();
+            }
+            DubinsAirplaneMotionValidator(const SpaceInformationPtr &si) : MotionValidator(si)
+            {
+                defaultSettings();
+            }
+            ~DubinsAirplaneMotionValidator() override = default;
+            bool checkMotion(const State *s1, const State *s2) const override;
+            bool checkMotion(const State *s1, const State *s2, std::pair<State *, double> &lastValid) const override;
+
+        private:
+            DubinsAirplaneStateSpace *stateSpace_;
+            void defaultSettings();
         };
     }  // namespace base
 }  // namespace ompl
