@@ -182,7 +182,7 @@ void ompl::base::DubinsAirplaneStateSpace::interpolate(const State *from, const 
                     s->setYaw(s->getYaw() - th);
                     break;
                 case DubinsStateSpace::DUBINS_STRAIGHT:
-                    s->setXY(s->getX() - (v * cos(phi)), s->getY() - (v * sin(phi)));
+                    s->setXY(s->getX() + (v * cos(phi)), s->getY() + (v * sin(phi)));
                     s->setZ(s->getZ() + v * tan(path.climbAngle));
                     break;
             }
