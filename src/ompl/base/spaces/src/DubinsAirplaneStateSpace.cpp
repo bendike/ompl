@@ -1,8 +1,8 @@
 #include "ompl/base/spaces/DubinsAirplaneStateSpace.h"
+#include <boost/math/constants/constants.hpp>
+#include <queue>
 #include "ompl/base/SpaceInformation.h"
 #include "ompl/util/Exception.h"
-#include <queue>
-#include <boost/math/constants/constants.hpp>
 
 using namespace ompl::base;
 
@@ -49,6 +49,8 @@ namespace ompl
             const double dz = s2->getZ() - s1->getZ();
 
             auto projectedPath = projectedStateSpace->as<DubinsStateSpace>()->dubins(state1, state2);
+            double climbAngle = 0;
+            return DubinsAirplanePath(projectedPath, dubinsAirplanePathAltitudeType[0], climbAngle, turnRadius);
 
             if (projectedPath.length() * cos(climbAngle) > fabs(dz))
             {
@@ -93,7 +95,7 @@ void ompl::base::DubinsAirplaneStateSpace::interpolate(const State *from, const 
             return;
         }
 
-        if (t >= 0.)
+        if (t <= 0.)
         {
             if (from != state)
                 copyState(state, from);
@@ -101,6 +103,7 @@ void ompl::base::DubinsAirplaneStateSpace::interpolate(const State *from, const 
         }
 
         path = dubins(from, to);
+        firstTime = false;
     }
     interpolate(from, path, t, state);
 }
@@ -109,12 +112,12 @@ void ompl::base::DubinsAirplaneStateSpace::interpolate(const State *from, const 
                                                        State *state) const
 {
     auto *s = allocState()->as<StateType>();
-    double seg = t * path.projectedLength(), phi, v;
+    double seg = t * path.projectedPath.length(), phi, v;
 
     s->setXYZ(0., 0., 0.);
     s->setYaw(from->as<StateType>()->getYaw());
 
-    for (unsigned int i = 0; i < 4 && seg > 0; i++)
+    for (unsigned int i = 0; i < 3 && seg > 0; i++)
     {
         if (i == 3)  // HELIX SEGMENT
         {
@@ -158,7 +161,7 @@ void ompl::base::DubinsAirplaneStateSpace::interpolate(const State *from, const 
                     s->setYaw(phi - v);
                     break;
                 case DubinsStateSpace::DUBINS_STRAIGHT:
-                    s->setXY((s->getX() + v * cos(phi)) * turnRadius, (s->getY() + v * sin(phi) * turnRadius));
+                    s->setXY(s->getX() + (v * cos(phi)) * turnRadius, s->getY() + (v * sin(phi)) * turnRadius);
                     s->setZ(s->getZ() + v * tan(path.climbAngle));
                     break;
             }
