@@ -57,13 +57,15 @@ namespace ompl
         DubinsAirplaneStateSpace::DubinsAirplanePath DubinsAirplaneStateSpace::dubins(const State *state1,
                                                                                       const State *state2) const
         {
-            const auto *s1 = static_cast<const SimpleSE3StateSpace::StateType *>(state1);
-            const auto *s2 = static_cast<const SimpleSE3StateSpace::StateType *>(state2);
+            const auto *s1 = static_cast<const StateType *>(state1);
+            const auto *s2 = static_cast<const StateType *>(state2);
 
             const double dz = s2->getZ() - s1->getZ();
 
             auto projectedPath = projectedStateSpace->as<DubinsStateSpace>()->dubins(state1, state2);
-            double climbAngle = 0;
+            auto path = DubinsAirplanePath(projectedPath, turnRadius);
+            path.climbAngle = dz / path.projectedLength();
+            return path;
             return DubinsAirplanePath(projectedPath, dubinsAirplanePathAltitudeType[0], climbAngle, turnRadius);
 
             if (projectedPath.length() * cos(climbAngle) > fabs(dz))
@@ -170,7 +172,7 @@ void ompl::base::DubinsAirplaneStateSpace::interpolate(const State *from, const 
                     // s->setY(s->getY() + turnRadius * (sin(phi + th) - sin(phi)));
                     s->setXY(s->getX() + (sin(phi + th) - sin(phi)) * turnRadius,
                              s->getY() - (cos(phi + th) - cos(phi)) * turnRadius);
-                    s->setZ(s->getZ() + v * tan(path.climbAngle));
+                    s->setZ(s->getZ() + v * (path.climbAngle));
                     s->setYaw(s->getYaw() + th);
                     break;
                 case DubinsStateSpace::DUBINS_RIGHT:
@@ -178,12 +180,12 @@ void ompl::base::DubinsAirplaneStateSpace::interpolate(const State *from, const 
                     // s->setY(s->getY() + turnRadius * (sin(phi + th) - sin(phi)));
                     s->setXY(s->getX() - (sin(phi - th) - sin(phi)) * turnRadius,
                              s->getY() + (cos(phi - th) - cos(phi)) * turnRadius);
-                    s->setZ(s->getZ() + v * tan(path.climbAngle));
+                    s->setZ(s->getZ() + v * (path.climbAngle));
                     s->setYaw(s->getYaw() - th);
                     break;
                 case DubinsStateSpace::DUBINS_STRAIGHT:
                     s->setXY(s->getX() + (v * cos(phi)), s->getY() + (v * sin(phi)));
-                    s->setZ(s->getZ() + v * tan(path.climbAngle));
+                    s->setZ(s->getZ() + v * (path.climbAngle));
                     break;
             }
         }

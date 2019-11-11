@@ -1,10 +1,10 @@
 #ifndef OMPL_BASE_SPACES_DUBINS_AIRPLANE_STATE_SPACE
 #define OMPL_BASE_SPACES_DUBINS_AIRPLANE_STATE_SPACE
 
-#include <stdio.h>
 #include <math.h>
-#include "ompl/base/spaces/SimpleSE3StateSpace.h"
+#include <stdio.h>
 #include "ompl/base/spaces/DubinsStateSpace.h"
+#include "ompl/base/spaces/SimpleSE3StateSpace.h"
 
 namespace ompl
 {
@@ -71,6 +71,11 @@ namespace ompl
                 {
                 }
 
+                DubinsAirplanePath(DubinsStateSpace::DubinsPath &projectedPath, double turnRadius)
+                  : projectedPath(projectedPath), helix(NOHELIX, 0, 0, 0), turnRadius(turnRadius)
+                {
+                }
+
                 DubinsAirplanePath(DubinsStateSpace::DubinsPath &projectedPath, Helix helix,
                                    DubinsAirplanePathAltitudeType type, double climbAngle, double turnRadius)
                   : projectedPath(projectedPath)
@@ -93,7 +98,7 @@ namespace ompl
 
                 double length() const
                 {
-                    return (projectedPath.length() * turnRadius / cos(climbAngle)) + helix.length();
+                    return (projectedPath.length() * turnRadius) / cos(atan(climbAngle));  // + helix.length();
                 }
 
                 double projectedLength() const
@@ -109,7 +114,7 @@ namespace ompl
             DubinsAirplaneStateSpace(double turnRadius, double climbAngle)
               : climbAngle(climbAngle), turnRadius(turnRadius)
             {
-                projectedStateSpace = std::make_shared<DubinsStateSpace>(turnRadius,false);
+                projectedStateSpace = std::make_shared<DubinsStateSpace>(turnRadius, false);
             }
 
             // OVERRIDES
