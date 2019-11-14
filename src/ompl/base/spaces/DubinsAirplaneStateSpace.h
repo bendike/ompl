@@ -1,35 +1,77 @@
-#ifndef OMPL_BASE_SPACES_DUBINS_AIRPLANE_STATE_SPACE
-#define OMPL_BASE_SPACES_DUBINS_AIRPLANE_STATE_SPACE
+/*********************************************************************
+ * Software License Agreement (BSD License)
+ *
+ *  Copyright (c) 2010, Rice University
+ *  All rights reserved.
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
+ *  are met:
+ *
+ *   * Redistributions of source code must retain the above copyright
+ *     notice, this list of conditions and the following disclaimer.
+ *   * Redistributions in binary form must reproduce the above
+ *     copyright notice, this list of conditions and the following
+ *     disclaimer in the documentation and/or other materials provided
+ *     with the distribution.
+ *   * Neither the name of the Rice University nor the names of its
+ *     contributors may be used to endorse or promote products derived
+ *     from this software without specific prior written permission.
+ *
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+ *  FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ *  COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+ *  INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+ *  BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ *  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ *  CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ *  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+ *  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ *  POSSIBILITY OF SUCH DAMAGE.
+ *********************************************************************/
 
-#include <stdio.h>
-#include <math.h>
+/* Author: Mark Moll */
+
+#ifndef OMPL_BASE_SPACES_DUBINS_STATE_SPACE_
+#define OMPL_BASE_SPACES_DUBINS_STATE_SPACE_
+
+#include <boost/math/constants/constants.hpp>
+#include <boost/optional/optional.hpp>
+#include "ompl/base/MotionValidator.h"
 #include "ompl/base/spaces/SimpleSE3StateSpace.h"
-#include "ompl/base/spaces/DubinsStateSpace.h"
 
 namespace ompl
 {
     namespace base
     {
+        /** \brief An SE(2) state space where distance is measured by the
+            length of DubinsAirplane curves.
+
+            Note that this DubinsAirplane distance is \b not a proper distance metric,
+            so nearest neighbor methods that rely on distance() being a metric
+            (such as ompl::NearestNeighborsGNAT) will not always return the
+            true nearest neighbors or get stuck in an infinite loop.
+
+            The notation and solutions in the code are taken from:<br>
+            A.M. Shkel and V. Lumelsky, “Classification of the DubinsAirplane set,”
+            Robotics and Autonomous Systems, 34(4):179-202, 2001.
+            DOI: <a href="http://dx.doi.org/10.1016/S0921-8890(00)00127-5">10.1016/S0921-8890(00)00127-5</a>
+
+            The classification scheme described there is not actually used,
+            since it only applies to “long” paths.
+            */
         class DubinsAirplaneStateSpace : public SimpleSE3StateSpace
         {
         public:
-            enum DubinsAirplanePathAltitudeType
+            /** \brief The DubinsAirplane path segment type */
+            enum DubinsAirplanePathSegmentType
             {
-                LOW = 0,
-                MID = 1,
-                HIGH = 2
+                DUBINS_LEFT = 0,
+                DUBINS_STRAIGHT = 1,
+                DUBINS_RIGHT = 2
             };
-
-            static const DubinsAirplanePathAltitudeType dubinsAirplanePathAltitudeType[3];
-
-            enum HelixType
-            {
-                LEFT = 0,
-                NOHELIX = 1,
-                RIGHT = 2
-            };
-
-            static const HelixType helixType[3];
 
             class Helix
             {
@@ -37,9 +79,14 @@ namespace ompl
                 int n = 0;
                 double turnRadius = 0.0;
                 double climbAngle = 0.0;
-                HelixType type;
+                DubinsAirplanePathSegmentType type;
 
-                Helix(HelixType type, double r, double a, int n) : n(n), turnRadius(r), climbAngle(a), type(type)
+                Helix(DubinsAirplanePathSegmentType type = DUBINS_LEFT) : type(type)
+                {
+                }
+
+                Helix(DubinsAirplanePathSegmentType type, double r, double a, int n)
+                  : n(n), turnRadius(r), climbAngle(a), type(type)
                 {
                 }
 
@@ -53,105 +100,111 @@ namespace ompl
                     return n * 2 * M_PI * turnRadius * climbAngle;
                 }
 
-                void projectedInterpolate(double &x, double &y, double t) const;
+                // void projectedInterpolate(double &x, double &y, double t) const;
 
-                void interpolate(double &x, double &y, double &z, double t) const;
+                // void interpolate(double &x, double &y, double &z, double t) const;
             };
+
+            /** \brief DubinsAirplane path types */
+            static const DubinsAirplanePathSegmentType dubinsPathType[6][3];
+            /** \brief Complete description of a DubinsAirplane path */
 
             class DubinsAirplanePath
             {
             public:
-                DubinsStateSpace::DubinsPath projectedPath;
-                Helix helix;
-                DubinsAirplanePathAltitudeType type;
-                double climbAngle;
-                double turnRadius;
-
-                DubinsAirplanePath() : helix(NOHELIX, 0, 0, 0)
+                DubinsAirplanePath(const DubinsAirplanePathSegmentType *type = dubinsPathType[0], double t = 0.,
+                                   double p = std::numeric_limits<double>::max(), double q = 0.)
+                  : type_(type), helix_()
                 {
+                    length_[0] = t;
+                    length_[1] = p;
+                    length_[2] = q;
+                    assert(t >= 0.);
+                    assert(p >= 0.);
+                    assert(q >= 0.);
                 }
-
-                DubinsAirplanePath(DubinsStateSpace::DubinsPath &projectedPath, Helix helix,
-                                   DubinsAirplanePathAltitudeType type, double climbAngle, double turnRadius)
-                  : projectedPath(projectedPath)
-                  , helix(helix)
-                  , type(type)
-                  , climbAngle(climbAngle)
-                  , turnRadius(turnRadius)
-                {
-                }
-
-                DubinsAirplanePath(DubinsStateSpace::DubinsPath &projectedPath, DubinsAirplanePathAltitudeType type,
-                                   double climbAngle, double turnRadius)
-                  : projectedPath(projectedPath)
-                  , helix(NOHELIX, 0, 0, 0)
-                  , type(type)
-                  , climbAngle(climbAngle)
-                  , turnRadius(turnRadius)
-                {
-                }
-
                 double length() const
                 {
-                    return (projectedPath.length() * turnRadius / cos(climbAngle)) + helix.length();
+                    return length_[0] + length_[1] + length_[2];
                 }
 
-                double projectedLength() const
-                {
-                    return projectedPath.length() * turnRadius + helix.projectedLength();
-                }
+                /** Path segment types */
+                const DubinsAirplanePathSegmentType *type_;
+                /** Path segment lengths */
+                double length_[3];
+                /** Path climb angle */
+                double climbAngle_;
+                /** Helix*/
+                Helix helix_;
+                // boost::optional<Helix> helix_;
+                /** Whether the path should be followed "in reverse" */
+                bool reverse_{false};
             };
 
-            StateSpacePtr projectedStateSpace;
-            double climbAngle;
-            double turnRadius;
-
-            DubinsAirplaneStateSpace(double turnRadius, double climbAngle)
-              : climbAngle(climbAngle), turnRadius(turnRadius)
+            DubinsAirplaneStateSpace(double turningRadius = 1.0, double climbAngleLimit = 1.0, bool isSymmetric = false)
+              : turningRadius_(turningRadius), climbAngleLimit_(climbAngleLimit), isSymmetric_(isSymmetric)
             {
-                projectedStateSpace = std::make_shared<DubinsStateSpace>(turnRadius,false);
             }
-
-            // OVERRIDES
 
             bool isMetricSpace() const override
             {
                 return false;
             }
 
+            double distance(const State *state1, const State *state2) const override;
+
+            void interpolate(const State *from, const State *to, double t, State *state) const override;
+            virtual void interpolate(const State *from, const State *to, double t, bool &firstTime,
+                                     DubinsAirplanePath &path, State *state) const;
+
             bool hasSymmetricDistance() const override
             {
-                return false;
+                return isSymmetric_;
             }
 
             bool hasSymmetricInterpolate() const override
             {
-                return false;
+                return isSymmetric_;
             }
 
             void sanityChecks() const override
             {
                 double zero = std::numeric_limits<double>::epsilon();
                 double eps = std::numeric_limits<float>::epsilon();
-                int flags = ~(StateSpace::STATESPACE_INTERPOLATION | StateSpace::STATESPACE_TRIANGLE_INEQUALITY |
-                              StateSpace::STATESPACE_DISTANCE_BOUND);
-                flags &= ~StateSpace::STATESPACE_DISTANCE_SYMMETRIC;
+                int flags = ~(STATESPACE_INTERPOLATION | STATESPACE_TRIANGLE_INEQUALITY | STATESPACE_DISTANCE_BOUND);
+                if (!isSymmetric_)
+                    flags &= ~STATESPACE_DISTANCE_SYMMETRIC;
                 StateSpace::sanityChecks(zero, eps, flags);
             }
 
-            double distance(const State *state1, const State *state2) const override;
-
-            void interpolate(const State *from, const State *to, double t, State *state) const override;
-
-            // MEMBERS
-            virtual void interpolate(const State *from, const State *to, double t, bool &firstTime,
-                                     DubinsAirplanePath &path, State *state) const;
-
+            /** \brief Return the shortest DubinsAirplane path from SE(2) state state1 to SE(2) state state2 */
             DubinsAirplanePath dubins(const State *state1, const State *state2) const;
 
-            void interpolate(const State *from, const DubinsAirplanePath &path, double t, State *state) const;
+        protected:
+            virtual void interpolate(const State *from, const DubinsAirplanePath &path, double t, State *state) const;
+
+            /** \brief Turning radius */
+            double turningRadius_;
+
+            /** \brief Climb angle limit */
+            double climbAngleLimit_;
+
+            /** \brief Whether the distance is "symmetrized"
+
+                If true the distance from state s1 to state s2 is the same as the
+                distance from s2 to s1. This is done by taking the \b minimum
+                length of the DubinsAirplane curves that connect s1 to s2 and s2 to s1. If
+                isSymmetric_ is true, then the distance no longer satisfies the
+                triangle inequality. */
+            bool isSymmetric_;
         };
 
+        /** \brief A DubinsAirplane motion validator that only uses the state validity checker.
+            Motions are checked for validity at a specified resolution.
+
+            This motion validator is almost identical to the DiscreteMotionValidator
+            except that it remembers the optimal DubinsAirplanePath between different calls to
+            interpolate. */
         class DubinsAirplaneMotionValidator : public MotionValidator
         {
         public:

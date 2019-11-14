@@ -1,3 +1,39 @@
+/*********************************************************************
+ * Software License Agreement (BSD License)
+ *
+ *  Copyright (c) 2010, Rice University
+ *  All rights reserved.
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
+ *  are met:
+ *
+ *   * Redistributions of source code must retain the above copyright
+ *     notice, this list of conditions and the following disclaimer.
+ *   * Redistributions in binary form must reproduce the above
+ *     copyright notice, this list of conditions and the following
+ *     disclaimer in the documentation and/or other materials provided
+ *     with the distribution.
+ *   * Neither the name of the Rice University nor the names of its
+ *     contributors may be used to endorse or promote products derived
+ *     from this software without specific prior written permission.
+ *
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+ *  FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ *  COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+ *  INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+ *  BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ *  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ *  CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ *  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+ *  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ *  POSSIBILITY OF SUCH DAMAGE.
+ *********************************************************************/
+
+/* Author: Mark Moll */
+
 #include "ompl/base/spaces/DubinsAirplaneStateSpace.h"
 #include <boost/math/constants/constants.hpp>
 #include <queue>
@@ -6,85 +42,194 @@
 
 using namespace ompl::base;
 
-namespace ompl
+namespace
 {
-    namespace base
+    const double twopi = 2. * boost::math::constants::pi<double>();
+    const double DUBINS_EPS = 1e-6;
+    const double DUBINS_ZERO = -1e-7;
+
+    inline double mod2pi(double x)
     {
-        const DubinsAirplaneStateSpace::DubinsAirplanePathAltitudeType
-            DubinsAirplaneStateSpace::dubinsAirplanePathAltitudeType[3] = {LOW, HIGH, MID};
+        if (x < 0 && x > DUBINS_ZERO)
+            return 0;
+        double xm = x - twopi * floor(x / twopi);
+        if (twopi - xm < .5 * DUBINS_EPS)
+            xm = 0.;
+        return xm;
+    }
 
-        const DubinsAirplaneStateSpace::HelixType DubinsAirplaneStateSpace::helixType[3] = {LEFT, RIGHT, NOHELIX};
-
-        void DubinsAirplaneStateSpace::Helix::projectedInterpolate(double &x, double &y, double t) const
+    DubinsAirplaneStateSpace::DubinsAirplanePath dubinsLSL(double d, double alpha, double beta)
+    {
+        double ca = cos(alpha), sa = sin(alpha), cb = cos(beta), sb = sin(beta);
+        double tmp = 2. + d * d - 2. * (ca * cb + sa * sb - d * (sa - sb));
+        if (tmp >= DUBINS_ZERO)
         {
-            double seg = projectedLength() * t;
-            switch (type)
-            {
-                case LEFT:
-                    x = x - (turnRadius - cos(seg / turnRadius));
-                    y = y + sin(t / turnRadius);
-                    break;
-                case RIGHT:
-                    x = x + (turnRadius - cos(seg / turnRadius));
-                    y = y + sin(t / turnRadius);
-                    break;
-                case NOHELIX:
-                    break;
-            }
+            double theta = atan2(cb - ca, d + sa - sb);
+            double t = mod2pi(-alpha + theta);
+            double p = sqrt(std::max(tmp, 0.));
+            double q = mod2pi(beta - theta);
+            assert(fabs(p * cos(alpha + t) - sa + sb - d) < 2 * DUBINS_EPS);
+            assert(fabs(p * sin(alpha + t) + ca - cb) < 2 * DUBINS_EPS);
+            assert(mod2pi(alpha + t + q - beta + .5 * DUBINS_EPS) < DUBINS_EPS);
+            return DubinsAirplaneStateSpace::DubinsAirplanePath(DubinsAirplaneStateSpace::dubinsPathType[0], t, p, q);
         }
+        return {};
+    }
 
-        void DubinsAirplaneStateSpace::Helix::interpolate(double &x, double &y, double &z, double t) const
+    DubinsAirplaneStateSpace::DubinsAirplanePath dubinsRSR(double d, double alpha, double beta)
+    {
+        double ca = cos(alpha), sa = sin(alpha), cb = cos(beta), sb = sin(beta);
+        double tmp = 2. + d * d - 2. * (ca * cb + sa * sb - d * (sb - sa));
+        if (tmp >= DUBINS_ZERO)
         {
-            projectedInterpolate(x, y, t);
-            double seg = length() * t;
-            z = z + seg * sin(climbAngle);
+            double theta = atan2(ca - cb, d - sa + sb);
+            double t = mod2pi(alpha - theta);
+            double p = sqrt(std::max(tmp, 0.));
+            double q = mod2pi(-beta + theta);
+            assert(fabs(p * cos(alpha - t) + sa - sb - d) < 2 * DUBINS_EPS);
+            assert(fabs(p * sin(alpha - t) - ca + cb) < 2 * DUBINS_EPS);
+            assert(mod2pi(alpha - t - q - beta + .5 * DUBINS_EPS) < DUBINS_EPS);
+            return DubinsAirplaneStateSpace::DubinsAirplanePath(DubinsAirplaneStateSpace::dubinsPathType[1], t, p, q);
         }
+        return {};
+    }
 
-        DubinsAirplaneStateSpace::DubinsAirplanePath DubinsAirplaneStateSpace::dubins(const State *state1,
-                                                                                      const State *state2) const
+    DubinsAirplaneStateSpace::DubinsAirplanePath dubinsRSL(double d, double alpha, double beta)
+    {
+        double ca = cos(alpha), sa = sin(alpha), cb = cos(beta), sb = sin(beta);
+        double tmp = d * d - 2. + 2. * (ca * cb + sa * sb - d * (sa + sb));
+        if (tmp >= DUBINS_ZERO)
         {
-            const auto *s1 = static_cast<const SimpleSE3StateSpace::StateType *>(state1);
-            const auto *s2 = static_cast<const SimpleSE3StateSpace::StateType *>(state2);
-
-            const double dz = s2->getZ() - s1->getZ();
-
-            auto projectedPath = projectedStateSpace->as<DubinsStateSpace>()->dubins(state1, state2);
-            double climbAngle = 0;
-            return DubinsAirplanePath(projectedPath, dubinsAirplanePathAltitudeType[0], climbAngle, turnRadius);
-
-            if (projectedPath.length() * cos(climbAngle) > fabs(dz))
-            {
-                double climbAngle = atan(dz / projectedPath.length());
-                return DubinsAirplanePath(projectedPath, dubinsAirplanePathAltitudeType[0], climbAngle, turnRadius);
-            }
-            else
-            {
-                int n = floor((fabs(dz) / tan(climbAngle) - projectedPath.length()) / (2 * M_PI * turnRadius));
-                double r = (fabs(dz) - projectedPath.length() * tan(climbAngle)) / (2 * M_PI_2 * n * tan(climbAngle));
-                double climbAngle_ = copysign(climbAngle, dz);
-                Helix helix(HelixType(projectedPath.type_[2]), r, climbAngle, n);
-
-                return DubinsAirplanePath(projectedPath, helix, dubinsAirplanePathAltitudeType[1], climbAngle_,
-                                          turnRadius);
-            }
+            double p = sqrt(std::max(tmp, 0.));
+            double theta = atan2(ca + cb, d - sa - sb) - atan2(2., p);
+            double t = mod2pi(alpha - theta);
+            double q = mod2pi(beta - theta);
+            assert(fabs(p * cos(alpha - t) - 2. * sin(alpha - t) + sa + sb - d) < 2 * DUBINS_EPS);
+            assert(fabs(p * sin(alpha - t) + 2. * cos(alpha - t) - ca - cb) < 2 * DUBINS_EPS);
+            assert(mod2pi(alpha - t + q - beta + .5 * DUBINS_EPS) < DUBINS_EPS);
+            return DubinsAirplaneStateSpace::DubinsAirplanePath(DubinsAirplaneStateSpace::dubinsPathType[2], t, p, q);
         }
-    };  // namespace base
-};      // namespace ompl
+        return {};
+    }
+
+    DubinsAirplaneStateSpace::DubinsAirplanePath dubinsLSR(double d, double alpha, double beta)
+    {
+        double ca = cos(alpha), sa = sin(alpha), cb = cos(beta), sb = sin(beta);
+        double tmp = -2. + d * d + 2. * (ca * cb + sa * sb + d * (sa + sb));
+        if (tmp >= DUBINS_ZERO)
+        {
+            double p = sqrt(std::max(tmp, 0.));
+            double theta = atan2(-ca - cb, d + sa + sb) - atan2(-2., p);
+            double t = mod2pi(-alpha + theta);
+            double q = mod2pi(-beta + theta);
+            assert(fabs(p * cos(alpha + t) + 2. * sin(alpha + t) - sa - sb - d) < 2 * DUBINS_EPS);
+            assert(fabs(p * sin(alpha + t) - 2. * cos(alpha + t) + ca + cb) < 2 * DUBINS_EPS);
+            assert(mod2pi(alpha + t - q - beta + .5 * DUBINS_EPS) < DUBINS_EPS);
+            return DubinsAirplaneStateSpace::DubinsAirplanePath(DubinsAirplaneStateSpace::dubinsPathType[3], t, p, q);
+        }
+        return {};
+    }
+
+    DubinsAirplaneStateSpace::DubinsAirplanePath dubinsRLR(double d, double alpha, double beta)
+    {
+        double ca = cos(alpha), sa = sin(alpha), cb = cos(beta), sb = sin(beta);
+        double tmp = .125 * (6. - d * d + 2. * (ca * cb + sa * sb + d * (sa - sb)));
+        if (fabs(tmp) < 1.)
+        {
+            double p = twopi - acos(tmp);
+            double theta = atan2(ca - cb, d - sa + sb);
+            double t = mod2pi(alpha - theta + .5 * p);
+            double q = mod2pi(alpha - beta - t + p);
+            assert(fabs(2. * sin(alpha - t + p) - 2. * sin(alpha - t) - d + sa - sb) < 2 * DUBINS_EPS);
+            assert(fabs(-2. * cos(alpha - t + p) + 2. * cos(alpha - t) - ca + cb) < 2 * DUBINS_EPS);
+            assert(mod2pi(alpha - t + p - q - beta + .5 * DUBINS_EPS) < DUBINS_EPS);
+            return DubinsAirplaneStateSpace::DubinsAirplanePath(DubinsAirplaneStateSpace::dubinsPathType[4], t, p, q);
+        }
+        return {};
+    }
+
+    DubinsAirplaneStateSpace::DubinsAirplanePath dubinsLRL(double d, double alpha, double beta)
+    {
+        double ca = cos(alpha), sa = sin(alpha), cb = cos(beta), sb = sin(beta);
+        double tmp = .125 * (6. - d * d + 2. * (ca * cb + sa * sb - d * (sa - sb)));
+        if (fabs(tmp) < 1.)
+        {
+            double p = twopi - acos(tmp);
+            double theta = atan2(-ca + cb, d + sa - sb);
+            double t = mod2pi(-alpha + theta + .5 * p);
+            double q = mod2pi(beta - alpha - t + p);
+            assert(fabs(-2. * sin(alpha + t - p) + 2. * sin(alpha + t) - d - sa + sb) < 2 * DUBINS_EPS);
+            assert(fabs(2. * cos(alpha + t - p) - 2. * cos(alpha + t) + ca - cb) < 2 * DUBINS_EPS);
+            assert(mod2pi(alpha + t - p + q - beta + .5 * DUBINS_EPS) < DUBINS_EPS);
+            return DubinsAirplaneStateSpace::DubinsAirplanePath(DubinsAirplaneStateSpace::dubinsPathType[5], t, p, q);
+        }
+        return {};
+    }
+
+    DubinsAirplaneStateSpace::DubinsAirplanePath dubins(double d, double alpha, double beta)
+    {
+        if (d < DUBINS_EPS && fabs(alpha - beta) < DUBINS_EPS)
+            return {DubinsAirplaneStateSpace::dubinsPathType[0], 0, d, 0};
+
+        DubinsAirplaneStateSpace::DubinsAirplanePath path(dubinsLSL(d, alpha, beta)), tmp(dubinsRSR(d, alpha, beta));
+        double len, minLength = path.length();
+
+        if ((len = tmp.length()) < minLength)
+        {
+            minLength = len;
+            path = tmp;
+        }
+        tmp = dubinsRSL(d, alpha, beta);
+        if ((len = tmp.length()) < minLength)
+        {
+            minLength = len;
+            path = tmp;
+        }
+        tmp = dubinsLSR(d, alpha, beta);
+        if ((len = tmp.length()) < minLength)
+        {
+            minLength = len;
+            path = tmp;
+        }
+        tmp = dubinsRLR(d, alpha, beta);
+        if ((len = tmp.length()) < minLength)
+        {
+            minLength = len;
+            path = tmp;
+        }
+        tmp = dubinsLRL(d, alpha, beta);
+        if ((len = tmp.length()) < minLength)
+            path = tmp;
+
+        return path;
+    }
+}  // namespace
+
+const ompl::base::DubinsAirplaneStateSpace::DubinsAirplanePathSegmentType
+    ompl::base::DubinsAirplaneStateSpace::dubinsPathType[6][3] = {
+        {DUBINS_LEFT, DUBINS_STRAIGHT, DUBINS_LEFT},  {DUBINS_RIGHT, DUBINS_STRAIGHT, DUBINS_RIGHT},
+        {DUBINS_RIGHT, DUBINS_STRAIGHT, DUBINS_LEFT}, {DUBINS_LEFT, DUBINS_STRAIGHT, DUBINS_RIGHT},
+        {DUBINS_RIGHT, DUBINS_LEFT, DUBINS_RIGHT},    {DUBINS_LEFT, DUBINS_RIGHT, DUBINS_LEFT}};
 
 double ompl::base::DubinsAirplaneStateSpace::distance(const State *state1, const State *state2) const
 {
-    return dubins(state1, state2).length();
+    DubinsAirplaneStateSpace::DubinsAirplanePath path;
+    if (isSymmetric_)
+        return turningRadius_ * std::min(dubins(state1, state2).length(), dubins(state2, state1).length());
+    path = dubins(state1, state2);
+    return turningRadius_ * path.length() * cos(path.climbAngle_);
 }
 
-void ompl::base::DubinsAirplaneStateSpace::interpolate(const State *from, const State *to, double t, State *state) const
+void ompl::base::DubinsAirplaneStateSpace::interpolate(const State *from, const State *to, const double t,
+                                                       State *state) const
 {
     bool firstTime = true;
     DubinsAirplanePath path;
     interpolate(from, to, t, firstTime, path, state);
 }
 
-void ompl::base::DubinsAirplaneStateSpace::interpolate(const State *from, const State *to, double t, bool &firstTime,
-                                                       DubinsAirplanePath &path, State *state) const
+void ompl::base::DubinsAirplaneStateSpace::interpolate(const State *from, const State *to, const double t,
+                                                       bool &firstTime, DubinsAirplanePath &path, State *state) const
 {
     if (firstTime)
     {
@@ -94,7 +239,6 @@ void ompl::base::DubinsAirplaneStateSpace::interpolate(const State *from, const 
                 copyState(state, to);
             return;
         }
-
         if (t <= 0.)
         {
             if (from != state)
@@ -103,6 +247,15 @@ void ompl::base::DubinsAirplaneStateSpace::interpolate(const State *from, const 
         }
 
         path = dubins(from, to);
+        if (isSymmetric_)
+        {
+            DubinsAirplanePath path2(dubins(to, from));
+            if (path2.length() < path.length())
+            {
+                path2.reverse_ = true;
+                path = path2;
+            }
+        }
         firstTime = false;
     }
     interpolate(from, path, t, state);
@@ -112,57 +265,57 @@ void ompl::base::DubinsAirplaneStateSpace::interpolate(const State *from, const 
                                                        State *state) const
 {
     auto *s = allocState()->as<StateType>();
-    double seg = t * path.projectedPath.length(), phi, v;
+    double seg = t * path.length(), phi, v;
 
-    s->setXYZ(0., 0., 0.);
+    s->setXY(0., 0.);
+    s->setZ(seg * turningRadius_ * tan(path.climbAngle_));
     s->setYaw(from->as<StateType>()->getYaw());
-
-    for (unsigned int i = 0; i < 3 && seg > 0; i++)
+    if (!path.reverse_)
     {
-        if (i == 3)  // HELIX SEGMENT
+        for (unsigned int i = 0; i < 3 && seg > 0; ++i)
         {
-            phi = s->getYaw();
-
-            switch (path.helix.type)
-            {
-                case LEFT:
-                    s->setXY(s->getX() - (path.helix.turnRadius - cos(seg / path.helix.turnRadius)),
-                             s->getY() + sin(seg / path.helix.turnRadius));
-                    s->setYaw(phi + seg);
-                    break;
-                case RIGHT:
-                    s->setXY(s->getX() + (path.helix.turnRadius - cos(seg / path.helix.turnRadius)),
-                             s->getY() + sin(seg / path.helix.turnRadius));
-                    s->setYaw(phi - seg);
-                    break;
-                case NOHELIX:
-                    break;
-            }
-            s->setZ(s->getZ() + seg * tan(path.helix.climbAngle));
-        }
-        else
-        {
-            v = std::min(seg, path.projectedPath.length_[i]);
+            v = std::min(seg, path.length_[i]);
             phi = s->getYaw();
             seg -= v;
-
-            switch (path.projectedPath.type_[i])
+            switch (path.type_[i])
             {
-                case DubinsStateSpace::DUBINS_LEFT:
-                    s->setXY(s->getX() + (sin(phi + v) - sin(phi)) * turnRadius,
-                             s->getY() - (cos(phi + v) - cos(phi)) * turnRadius);
-                    s->setZ(s->getZ() + v * tan(path.climbAngle));
+                case DUBINS_LEFT:
+                    s->setXY(s->getX() + (sin(phi + v) - sin(phi)) * turningRadius_,
+                             s->getY() - (cos(phi + v) - cos(phi)) * turningRadius_);
                     s->setYaw(phi + v);
                     break;
-                case DubinsStateSpace::DUBINS_RIGHT:
-                    s->setXY(s->getX() - (sin(phi - v) - sin(phi)) * turnRadius,
-                             s->getY() + (cos(phi - v) - cos(phi)) * turnRadius);
-                    s->setZ(s->getZ() + v * tan(path.climbAngle));
+                case DUBINS_RIGHT:
+                    s->setXY(s->getX() - (sin(phi - v) - sin(phi)) * turningRadius_,
+                             s->getY() + (cos(phi - v) - cos(phi)) * turningRadius_);
                     s->setYaw(phi - v);
                     break;
-                case DubinsStateSpace::DUBINS_STRAIGHT:
-                    s->setXY(s->getX() + (v * cos(phi)) * turnRadius, s->getY() + (v * sin(phi)) * turnRadius);
-                    s->setZ(s->getZ() + v * tan(path.climbAngle));
+                case DUBINS_STRAIGHT:
+                    s->setXY(s->getX() + (v * cos(phi)) * turningRadius_, s->getY() + (v * sin(phi)) * turningRadius_);
+                    break;
+            }
+        }
+    }
+    else
+    {
+        for (unsigned int i = 0; i < 3 && seg > 0; ++i)
+        {
+            v = std::min(seg, path.length_[2 - i]);
+            phi = s->getYaw();
+            seg -= v;
+            switch (path.type_[2 - i])
+            {
+                case DUBINS_LEFT:
+                    s->setXY(s->getX() + (sin(phi + v) - sin(phi)) * turningRadius_,
+                             s->getY() - (cos(phi + v) - cos(phi)) * turningRadius_);
+                    s->setYaw(phi + v);
+                    break;
+                case DUBINS_RIGHT:
+                    s->setXY(s->getX() - (sin(phi - v) - sin(phi)) * turningRadius_,
+                             s->getY() + (cos(phi - v) - cos(phi)) * turningRadius_);
+                    s->setYaw(phi - v);
+                    break;
+                case DUBINS_STRAIGHT:
+                    s->setXY(s->getX() + (v * cos(phi)) * turningRadius_, s->getY() + (v * sin(phi)) * turningRadius_);
                     break;
             }
         }
@@ -170,11 +323,38 @@ void ompl::base::DubinsAirplaneStateSpace::interpolate(const State *from, const 
     state->as<StateType>()->setX(s->getX() + from->as<StateType>()->getX());
     state->as<StateType>()->setY(s->getY() + from->as<StateType>()->getY());
     state->as<StateType>()->setZ(s->getZ() + from->as<StateType>()->getZ());
-
+    // state->as<StateType>()->setZ(0);
     getSubspace(1)->enforceBounds(s->as<SO2StateSpace::StateType>(1));
     state->as<StateType>()->setYaw(s->getYaw());
-
     freeState(s);
+}
+
+ompl::base::DubinsAirplaneStateSpace::DubinsAirplanePath
+ompl::base::DubinsAirplaneStateSpace::dubins(const State *state1, const State *state2) const
+{
+    const auto *s1 = static_cast<const StateType *>(state1);
+    const auto *s2 = static_cast<const StateType *>(state2);
+    double x1 = s1->getX(), y1 = s1->getY(), z1 = s1->getZ(), th1 = s1->getYaw();
+    double x2 = s2->getX(), y2 = s2->getY(), z2 = s2->getZ(), th2 = s2->getYaw();
+    double dx = x2 - x1, dy = y2 - y1, dz = z2 - z1, d = sqrt(dx * dx + dy * dy) / turningRadius_, th = atan2(dy, dx);
+    double alpha = mod2pi(th1 - th), beta = mod2pi(th2 - th);
+    DubinsAirplaneStateSpace::DubinsAirplanePath path = ::dubins(d, alpha, beta);
+
+    double climbAngle = atan2(dz, path.length() * turningRadius_);
+    if (fabs(climbAngle) < climbAngleLimit_)
+    {
+        path.climbAngle_ = climbAngle;
+    }
+    else
+    {
+        path.climbAngle_ = climbAngleLimit_;
+        int n = floor((fabs(dz) / tan(climbAngleLimit_) - path.length()) / (2 * M_PI * turningRadius_));
+        double r = (fabs(dz) - path.length() * tan(climbAngleLimit_)) / (2 * M_PI_2 * n * tan(climbAngleLimit_));
+        double ca = copysign(climbAngleLimit_, dz);
+        path.helix_ = Helix(DUBINS_LEFT, r, ca, n);
+    }
+
+    return path;
 }
 
 void ompl::base::DubinsAirplaneMotionValidator::defaultSettings()
