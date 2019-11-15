@@ -76,16 +76,16 @@ namespace ompl
             class Helix
             {
             public:
-                int n = 0;
+                double n = 0;
                 double turnRadius = 0.0;
                 double climbAngle = 0.0;
                 DubinsAirplanePathSegmentType type;
 
-                Helix(DubinsAirplanePathSegmentType type = DUBINS_LEFT) : type(type)
+                Helix()
                 {
                 }
 
-                Helix(DubinsAirplanePathSegmentType type, double r, double a, int n)
+                Helix(DubinsAirplanePathSegmentType type, double r, double a, double n)
                   : n(n), turnRadius(r), climbAngle(a), type(type)
                 {
                 }
@@ -97,7 +97,7 @@ namespace ompl
 
                 double length() const
                 {
-                    return n * 2 * M_PI * turnRadius * climbAngle;
+                    return n * 2 * M_PI * turnRadius / cos(climbAngle);
                 }
 
                 // void projectedInterpolate(double &x, double &y, double t) const;
@@ -114,7 +114,7 @@ namespace ompl
             public:
                 DubinsAirplanePath(const DubinsAirplanePathSegmentType *type = dubinsPathType[0], double t = 0.,
                                    double p = std::numeric_limits<double>::max(), double q = 0.)
-                  : type_(type), helix_()
+                  : type_(type), helix_(nullptr)
                 {
                     length_[0] = t;
                     length_[1] = p;
@@ -135,7 +135,7 @@ namespace ompl
                 /** Path climb angle */
                 double climbAngle_;
                 /** Helix*/
-                Helix helix_;
+                Helix *helix_;
                 // boost::optional<Helix> helix_;
                 /** Whether the path should be followed "in reverse" */
                 bool reverse_{false};

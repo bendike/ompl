@@ -32,7 +32,7 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
 
-/* Author: Mark Moll */
+/* Original Author: Mark Moll, Airplane functionality added by Bendik Eger*/
 
 #include "ompl/base/spaces/DubinsAirplaneStateSpace.h"
 #include <boost/math/constants/constants.hpp>
@@ -214,10 +214,15 @@ const ompl::base::DubinsAirplaneStateSpace::DubinsAirplanePathSegmentType
 double ompl::base::DubinsAirplaneStateSpace::distance(const State *state1, const State *state2) const
 {
     DubinsAirplaneStateSpace::DubinsAirplanePath path;
-    if (isSymmetric_)
-        return turningRadius_ * std::min(dubins(state1, state2).length(), dubins(state2, state1).length());
+
     path = dubins(state1, state2);
-    return turningRadius_ * path.length() * cos(path.climbAngle_);
+    if (isSymmetric_ && path.length() > dubins(state2, state1).length())
+        path = dubins(state2, state1);
+
+    if (path.helix_)
+        return (turningRadius_ * path.length() + path.helix_->length()) / cos(path.climbAngle_);
+
+    return turningRadius_ * path.length() / cos(path.climbAngle_);
 }
 
 void ompl::base::DubinsAirplaneStateSpace::interpolate(const State *from, const State *to, const double t,
@@ -265,18 +270,24 @@ void ompl::base::DubinsAirplaneStateSpace::interpolate(const State *from, const 
                                                        State *state) const
 {
     auto *s = allocState()->as<StateType>();
-    double seg = t * path.length(), phi, v;
+    double seg = t * (path.length() * turningRadius_), phi, v;
+
+    if (path.helix_)
+    {
+        seg = t * (path.length() * turningRadius_ + path.helix_->projectedLength());
+    }
 
     s->setXY(0., 0.);
-    s->setZ(seg * turningRadius_ * tan(path.climbAngle_));
+    s->setZ(seg * tan(path.climbAngle_));
     s->setYaw(from->as<StateType>()->getYaw());
     if (!path.reverse_)
     {
         for (unsigned int i = 0; i < 3 && seg > 0; ++i)
         {
-            v = std::min(seg, path.length_[i]);
+            v = std::min(seg, path.length_[i] * turningRadius_);
             phi = s->getYaw();
             seg -= v;
+            v = v / turningRadius_;
             switch (path.type_[i])
             {
                 case DUBINS_LEFT:
@@ -320,10 +331,29 @@ void ompl::base::DubinsAirplaneStateSpace::interpolate(const State *from, const 
             }
         }
     }
+
+    if (path.helix_)
+    {
+        v = seg / path.helix_->turnRadius;
+        phi = s->getYaw();
+        switch (path.helix_->type)
+        {
+            case DUBINS_LEFT:
+                s->setXY(s->getX() + (sin(phi + v) - sin(phi)) * path.helix_->turnRadius,
+                         s->getY() - (cos(phi + v) - cos(phi)) * path.helix_->turnRadius);
+                s->setYaw(phi + v);
+                break;
+            case DUBINS_RIGHT:
+                s->setXY(s->getX() - (sin(phi - v) - sin(phi)) * path.helix_->turnRadius,
+                         s->getY() + (cos(phi - v) - cos(phi)) * path.helix_->turnRadius);
+                s->setYaw(phi - v);
+                break;
+        }
+    }
+
     state->as<StateType>()->setX(s->getX() + from->as<StateType>()->getX());
     state->as<StateType>()->setY(s->getY() + from->as<StateType>()->getY());
     state->as<StateType>()->setZ(s->getZ() + from->as<StateType>()->getZ());
-    // state->as<StateType>()->setZ(0);
     getSubspace(1)->enforceBounds(s->as<SO2StateSpace::StateType>(1));
     state->as<StateType>()->setYaw(s->getYaw());
     freeState(s);
@@ -347,11 +377,23 @@ ompl::base::DubinsAirplaneStateSpace::dubins(const State *state1, const State *s
     }
     else
     {
-        path.climbAngle_ = climbAngleLimit_;
-        int n = floor((fabs(dz) / tan(climbAngleLimit_) - path.length()) / (2 * M_PI * turningRadius_));
-        double r = (fabs(dz) - path.length() * tan(climbAngleLimit_)) / (2 * M_PI_2 * n * tan(climbAngleLimit_));
-        double ca = copysign(climbAngleLimit_, dz);
-        path.helix_ = Helix(DUBINS_LEFT, r, ca, n);
+        double n =
+            floor((fabs(dz) / tan(climbAngleLimit_) - path.length() * turningRadius_) / (2 * M_PI * turningRadius_));
+        if (n)
+        {
+            double r = (fabs(dz) - path.length() * turningRadius_ * tan(climbAngleLimit_)) /
+                       (2 * M_PI * n * tan(climbAngleLimit_));
+            double ca = copysign(climbAngleLimit_, dz);
+            path.climbAngle_ = ca;
+            path.helix_ = new Helix(path.type_[2], r, ca, n);
+        }
+        else
+        {
+            n = 1;
+            double ca = atan2(dz, path.length() * turningRadius_ + turningRadius_ * n * 2 * M_PI);
+            path.climbAngle_ = ca;
+            path.helix_ = new Helix(path.type_[2], turningRadius_, ca, n);
+        }
     }
 
     return path;
