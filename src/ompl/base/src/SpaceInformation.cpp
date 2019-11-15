@@ -41,7 +41,6 @@
 #include "ompl/base/DiscreteMotionValidator.h"
 #include "ompl/base/samplers/UniformValidStateSampler.h"
 #include "ompl/base/spaces/DubinsStateSpace.h"
-#include "ompl/base/spaces/DubinsAirplaneStateSpace.h"
 #include "ompl/base/spaces/ReedsSheppStateSpace.h"
 #include "ompl/base/spaces/constraint/ConstrainedStateSpace.h"
 #include "ompl/tools/config/MagicConstants.h"

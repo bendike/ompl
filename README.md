@@ -1,7 +1,10 @@
 # Notice
-This is my fork for implementing dubins airplane functionality in the ompl framework. WIP status. 
-The following is the original README.md
+This is my fork of OMPL for implementing dubins airplane functionality. To be used in a personal project. 
 
+I have tried to touch as little of the original code base as possible. Therefore you must set the motion validator manually when using `DubinsAirplaneStateSpace`:
+```si->setMotionValidator(std::make_shared<ob::DubinsAirplaneMotionValidator>(si));```
+
+The following is the original README.md
 
 The Open Motion Planning Library (OMPL)
 =======================================

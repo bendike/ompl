@@ -77,38 +77,30 @@ namespace ompl
             {
             public:
                 double n = 0;
-                double turnRadius = 0.0;
-                double climbAngle = 0.0;
-                DubinsAirplanePathSegmentType type;
-
-                Helix()
-                {
-                }
+                double rho_ = 0.0;
+                double climbAngle_ = 0.0;
+                DubinsAirplanePathSegmentType type;  // used to determine the turn direction of the helix
 
                 Helix(DubinsAirplanePathSegmentType type, double r, double a, double n)
-                  : n(n), turnRadius(r), climbAngle(a), type(type)
+                  : n(n), rho_(r), climbAngle_(a), type(type)
                 {
                 }
 
                 double projectedLength() const
                 {
-                    return n * 2 * M_PI * turnRadius;
+                    return n * 2 * M_PI * rho_;
                 }
 
                 double length() const
                 {
-                    return n * 2 * M_PI * turnRadius / cos(climbAngle);
+                    return n * 2 * M_PI * rho_ / cos(climbAngle_);
                 }
-
-                // void projectedInterpolate(double &x, double &y, double t) const;
-
-                // void interpolate(double &x, double &y, double &z, double t) const;
             };
 
             /** \brief DubinsAirplane path types */
             static const DubinsAirplanePathSegmentType dubinsPathType[6][3];
-            /** \brief Complete description of a DubinsAirplane path */
 
+            /** \brief Complete description of a DubinsAirplane path */
             class DubinsAirplanePath
             {
             public:
@@ -142,7 +134,7 @@ namespace ompl
             };
 
             DubinsAirplaneStateSpace(double turningRadius = 1.0, double climbAngleLimit = 1.0, bool isSymmetric = false)
-              : turningRadius_(turningRadius), climbAngleLimit_(climbAngleLimit), isSymmetric_(isSymmetric)
+              : rho_(turningRadius), climbAngleLimit_(climbAngleLimit), isSymmetric_(isSymmetric)
             {
             }
 
@@ -184,7 +176,7 @@ namespace ompl
             virtual void interpolate(const State *from, const DubinsAirplanePath &path, double t, State *state) const;
 
             /** \brief Turning radius */
-            double turningRadius_;
+            double rho_;
 
             /** \brief Climb angle limit */
             double climbAngleLimit_;

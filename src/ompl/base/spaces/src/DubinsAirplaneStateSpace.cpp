@@ -220,9 +220,9 @@ double ompl::base::DubinsAirplaneStateSpace::distance(const State *state1, const
         path = dubins(state2, state1);
 
     if (path.helix_)
-        return (turningRadius_ * path.length() + path.helix_->length()) / cos(path.climbAngle_);
+        return (rho_ * path.length() + path.helix_->length()) / cos(path.climbAngle_);
 
-    return turningRadius_ * path.length() / cos(path.climbAngle_);
+    return rho_ * path.length() / cos(path.climbAngle_);
 }
 
 void ompl::base::DubinsAirplaneStateSpace::interpolate(const State *from, const State *to, const double t,
@@ -270,11 +270,11 @@ void ompl::base::DubinsAirplaneStateSpace::interpolate(const State *from, const 
                                                        State *state) const
 {
     auto *s = allocState()->as<StateType>();
-    double seg = t * (path.length() * turningRadius_), phi, v;
+    double seg = t * (path.length() * rho_), phi, v;
 
     if (path.helix_)
     {
-        seg = t * (path.length() * turningRadius_ + path.helix_->projectedLength());
+        seg = t * (path.length() * rho_ + path.helix_->projectedLength());
     }
 
     s->setXY(0., 0.);
@@ -284,24 +284,24 @@ void ompl::base::DubinsAirplaneStateSpace::interpolate(const State *from, const 
     {
         for (unsigned int i = 0; i < 3 && seg > 0; ++i)
         {
-            v = std::min(seg, path.length_[i] * turningRadius_);
+            v = std::min(seg, path.length_[i] * rho_);
             phi = s->getYaw();
             seg -= v;
-            v = v / turningRadius_;
+            v = v / rho_;
             switch (path.type_[i])
             {
                 case DUBINS_LEFT:
-                    s->setXY(s->getX() + (sin(phi + v) - sin(phi)) * turningRadius_,
-                             s->getY() - (cos(phi + v) - cos(phi)) * turningRadius_);
+                    s->setXY(s->getX() + (sin(phi + v) - sin(phi)) * rho_,
+                             s->getY() - (cos(phi + v) - cos(phi)) * rho_);
                     s->setYaw(phi + v);
                     break;
                 case DUBINS_RIGHT:
-                    s->setXY(s->getX() - (sin(phi - v) - sin(phi)) * turningRadius_,
-                             s->getY() + (cos(phi - v) - cos(phi)) * turningRadius_);
+                    s->setXY(s->getX() - (sin(phi - v) - sin(phi)) * rho_,
+                             s->getY() + (cos(phi - v) - cos(phi)) * rho_);
                     s->setYaw(phi - v);
                     break;
                 case DUBINS_STRAIGHT:
-                    s->setXY(s->getX() + (v * cos(phi)) * turningRadius_, s->getY() + (v * sin(phi)) * turningRadius_);
+                    s->setXY(s->getX() + (v * cos(phi)) * rho_, s->getY() + (v * sin(phi)) * rho_);
                     break;
             }
         }
@@ -316,17 +316,17 @@ void ompl::base::DubinsAirplaneStateSpace::interpolate(const State *from, const 
             switch (path.type_[2 - i])
             {
                 case DUBINS_LEFT:
-                    s->setXY(s->getX() + (sin(phi + v) - sin(phi)) * turningRadius_,
-                             s->getY() - (cos(phi + v) - cos(phi)) * turningRadius_);
+                    s->setXY(s->getX() + (sin(phi + v) - sin(phi)) * rho_,
+                             s->getY() - (cos(phi + v) - cos(phi)) * rho_);
                     s->setYaw(phi + v);
                     break;
                 case DUBINS_RIGHT:
-                    s->setXY(s->getX() - (sin(phi - v) - sin(phi)) * turningRadius_,
-                             s->getY() + (cos(phi - v) - cos(phi)) * turningRadius_);
+                    s->setXY(s->getX() - (sin(phi - v) - sin(phi)) * rho_,
+                             s->getY() + (cos(phi - v) - cos(phi)) * rho_);
                     s->setYaw(phi - v);
                     break;
                 case DUBINS_STRAIGHT:
-                    s->setXY(s->getX() + (v * cos(phi)) * turningRadius_, s->getY() + (v * sin(phi)) * turningRadius_);
+                    s->setXY(s->getX() + (v * cos(phi)) * rho_, s->getY() + (v * sin(phi)) * rho_);
                     break;
             }
         }
@@ -334,18 +334,18 @@ void ompl::base::DubinsAirplaneStateSpace::interpolate(const State *from, const 
 
     if (path.helix_)
     {
-        v = seg / path.helix_->turnRadius;
+        v = seg / path.helix_->rho_;
         phi = s->getYaw();
         switch (path.helix_->type)
         {
             case DUBINS_LEFT:
-                s->setXY(s->getX() + (sin(phi + v) - sin(phi)) * path.helix_->turnRadius,
-                         s->getY() - (cos(phi + v) - cos(phi)) * path.helix_->turnRadius);
+                s->setXY(s->getX() + (sin(phi + v) - sin(phi)) * path.helix_->rho_,
+                         s->getY() - (cos(phi + v) - cos(phi)) * path.helix_->rho_);
                 s->setYaw(phi + v);
                 break;
             case DUBINS_RIGHT:
-                s->setXY(s->getX() - (sin(phi - v) - sin(phi)) * path.helix_->turnRadius,
-                         s->getY() + (cos(phi - v) - cos(phi)) * path.helix_->turnRadius);
+                s->setXY(s->getX() - (sin(phi - v) - sin(phi)) * path.helix_->rho_,
+                         s->getY() + (cos(phi - v) - cos(phi)) * path.helix_->rho_);
                 s->setYaw(phi - v);
                 break;
         }
@@ -366,36 +366,34 @@ ompl::base::DubinsAirplaneStateSpace::dubins(const State *state1, const State *s
     const auto *s2 = static_cast<const StateType *>(state2);
     double x1 = s1->getX(), y1 = s1->getY(), z1 = s1->getZ(), th1 = s1->getYaw();
     double x2 = s2->getX(), y2 = s2->getY(), z2 = s2->getZ(), th2 = s2->getYaw();
-    double dx = x2 - x1, dy = y2 - y1, dz = z2 - z1, d = sqrt(dx * dx + dy * dy) / turningRadius_, th = atan2(dy, dx);
+    double dx = x2 - x1, dy = y2 - y1, dz = z2 - z1, d = sqrt(dx * dx + dy * dy) / rho_, th = atan2(dy, dx);
     double alpha = mod2pi(th1 - th), beta = mod2pi(th2 - th);
     DubinsAirplaneStateSpace::DubinsAirplanePath path = ::dubins(d, alpha, beta);
 
-    double climbAngle = atan2(dz, path.length() * turningRadius_);
-    if (fabs(climbAngle) < climbAngleLimit_)
+    double ca = atan2(dz, path.length() * rho_);
+    if (fabs(ca) < climbAngleLimit_)  // LOW PATH
     {
-        path.climbAngle_ = climbAngle;
+        path.climbAngle_ = ca;
     }
     else
     {
-        double n =
-            floor((fabs(dz) / tan(climbAngleLimit_) - path.length() * turningRadius_) / (2 * M_PI * turningRadius_));
-        if (n)
+        double n = floor((fabs(dz) / tan(climbAngleLimit_) - path.length() * rho_) / (2 * M_PI * rho_));
+        if (n)  // HIGH PATH
         {
-            double r = (fabs(dz) - path.length() * turningRadius_ * tan(climbAngleLimit_)) /
-                       (2 * M_PI * n * tan(climbAngleLimit_));
+            double r =
+                (fabs(dz) - path.length() * rho_ * tan(climbAngleLimit_)) / (2 * M_PI * n * tan(climbAngleLimit_));
             double ca = copysign(climbAngleLimit_, dz);
             path.climbAngle_ = ca;
             path.helix_ = new Helix(path.type_[2], r, ca, n);
         }
-        else
+        else  // INTERMEDIATE PATH
         {
             n = 1;
-            double ca = atan2(dz, path.length() * turningRadius_ + turningRadius_ * n * 2 * M_PI);
+            double ca = atan2(dz, path.length() * rho_ + rho_ * n * 2 * M_PI);
             path.climbAngle_ = ca;
-            path.helix_ = new Helix(path.type_[2], turningRadius_, ca, n);
+            path.helix_ = new Helix(path.type_[2], rho_, ca, n);
         }
     }
-
     return path;
 }
 
