@@ -84,7 +84,8 @@ namespace ompl
 
             SimpleSE3StateSpace()
             {
-                setName("CustomSE2" + getName());
+                setName("SimpleSE3" + getName());
+                type_ = STATE_SPACE_SE3;
                 addSubspace(std::make_shared<RealVectorStateSpace>(3), 1.0);
                 addSubspace(std::make_shared<SO2StateSpace>(), 1.0);
                 lock();

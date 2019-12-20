@@ -68,9 +68,9 @@ namespace
             double t = mod2pi(-alpha + theta);
             double p = sqrt(std::max(tmp, 0.));
             double q = mod2pi(beta - theta);
-            assert(fabs(p * cos(alpha + t) - sa + sb - d) < 2 * DUBINS_EPS);
-            assert(fabs(p * sin(alpha + t) + ca - cb) < 2 * DUBINS_EPS);
-            assert(mod2pi(alpha + t + q - beta + .5 * DUBINS_EPS) < DUBINS_EPS);
+            // assert(fabs(p * cos(alpha + t) - sa + sb - d) < 2 * DUBINS_EPS);
+            // assert(fabs(p * sin(alpha + t) + ca - cb) < 2 * DUBINS_EPS);
+            // assert(mod2pi(alpha + t + q - beta + .5 * DUBINS_EPS) < DUBINS_EPS);
             return DubinsAirplaneStateSpace::DubinsAirplanePath(DubinsAirplaneStateSpace::dubinsPathType[0], t, p, q);
         }
         return {};
@@ -86,9 +86,9 @@ namespace
             double t = mod2pi(alpha - theta);
             double p = sqrt(std::max(tmp, 0.));
             double q = mod2pi(-beta + theta);
-            assert(fabs(p * cos(alpha - t) + sa - sb - d) < 2 * DUBINS_EPS);
-            assert(fabs(p * sin(alpha - t) - ca + cb) < 2 * DUBINS_EPS);
-            assert(mod2pi(alpha - t - q - beta + .5 * DUBINS_EPS) < DUBINS_EPS);
+            // assert(fabs(p * cos(alpha - t) + sa - sb - d) < 2 * DUBINS_EPS);
+            // assert(fabs(p * sin(alpha - t) - ca + cb) < 2 * DUBINS_EPS);
+            // assert(mod2pi(alpha - t - q - beta + .5 * DUBINS_EPS) < DUBINS_EPS);
             return DubinsAirplaneStateSpace::DubinsAirplanePath(DubinsAirplaneStateSpace::dubinsPathType[1], t, p, q);
         }
         return {};
@@ -104,9 +104,9 @@ namespace
             double theta = atan2(ca + cb, d - sa - sb) - atan2(2., p);
             double t = mod2pi(alpha - theta);
             double q = mod2pi(beta - theta);
-            assert(fabs(p * cos(alpha - t) - 2. * sin(alpha - t) + sa + sb - d) < 2 * DUBINS_EPS);
-            assert(fabs(p * sin(alpha - t) + 2. * cos(alpha - t) - ca - cb) < 2 * DUBINS_EPS);
-            assert(mod2pi(alpha - t + q - beta + .5 * DUBINS_EPS) < DUBINS_EPS);
+            // assert(fabs(p * cos(alpha - t) - 2. * sin(alpha - t) + sa + sb - d) < 2 * DUBINS_EPS);
+            // assert(fabs(p * sin(alpha - t) + 2. * cos(alpha - t) - ca - cb) < 2 * DUBINS_EPS);
+            // assert(mod2pi(alpha - t + q - beta + .5 * DUBINS_EPS) < DUBINS_EPS);
             return DubinsAirplaneStateSpace::DubinsAirplanePath(DubinsAirplaneStateSpace::dubinsPathType[2], t, p, q);
         }
         return {};
@@ -122,9 +122,9 @@ namespace
             double theta = atan2(-ca - cb, d + sa + sb) - atan2(-2., p);
             double t = mod2pi(-alpha + theta);
             double q = mod2pi(-beta + theta);
-            assert(fabs(p * cos(alpha + t) + 2. * sin(alpha + t) - sa - sb - d) < 2 * DUBINS_EPS);
-            assert(fabs(p * sin(alpha + t) - 2. * cos(alpha + t) + ca + cb) < 2 * DUBINS_EPS);
-            assert(mod2pi(alpha + t - q - beta + .5 * DUBINS_EPS) < DUBINS_EPS);
+            // assert(fabs(p * cos(alpha + t) + 2. * sin(alpha + t) - sa - sb - d) < 2 * DUBINS_EPS);
+            // assert(fabs(p * sin(alpha + t) - 2. * cos(alpha + t) + ca + cb) < 2 * DUBINS_EPS);
+            // assert(mod2pi(alpha + t - q - beta + .5 * DUBINS_EPS) < DUBINS_EPS);
             return DubinsAirplaneStateSpace::DubinsAirplanePath(DubinsAirplaneStateSpace::dubinsPathType[3], t, p, q);
         }
         return {};
@@ -140,9 +140,9 @@ namespace
             double theta = atan2(ca - cb, d - sa + sb);
             double t = mod2pi(alpha - theta + .5 * p);
             double q = mod2pi(alpha - beta - t + p);
-            assert(fabs(2. * sin(alpha - t + p) - 2. * sin(alpha - t) - d + sa - sb) < 2 * DUBINS_EPS);
-            assert(fabs(-2. * cos(alpha - t + p) + 2. * cos(alpha - t) - ca + cb) < 2 * DUBINS_EPS);
-            assert(mod2pi(alpha - t + p - q - beta + .5 * DUBINS_EPS) < DUBINS_EPS);
+            // assert(fabs(2. * sin(alpha - t + p) - 2. * sin(alpha - t) - d + sa - sb) < 2 * DUBINS_EPS);
+            // assert(fabs(-2. * cos(alpha - t + p) + 2. * cos(alpha - t) - ca + cb) < 2 * DUBINS_EPS);
+            // assert(mod2pi(alpha - t + p - q - beta + .5 * DUBINS_EPS) < DUBINS_EPS);
             return DubinsAirplaneStateSpace::DubinsAirplanePath(DubinsAirplaneStateSpace::dubinsPathType[4], t, p, q);
         }
         return {};
@@ -158,9 +158,9 @@ namespace
             double theta = atan2(-ca + cb, d + sa - sb);
             double t = mod2pi(-alpha + theta + .5 * p);
             double q = mod2pi(beta - alpha - t + p);
-            assert(fabs(-2. * sin(alpha + t - p) + 2. * sin(alpha + t) - d - sa + sb) < 2 * DUBINS_EPS);
-            assert(fabs(2. * cos(alpha + t - p) - 2. * cos(alpha + t) + ca - cb) < 2 * DUBINS_EPS);
-            assert(mod2pi(alpha + t - p + q - beta + .5 * DUBINS_EPS) < DUBINS_EPS);
+            // assert(fabs(-2. * sin(alpha + t - p) + 2. * sin(alpha + t) - d - sa + sb) < 2 * DUBINS_EPS);
+            // assert(fabs(2. * cos(alpha + t - p) - 2. * cos(alpha + t) + ca - cb) < 2 * DUBINS_EPS);
+            // assert(mod2pi(alpha + t - p + q - beta + .5 * DUBINS_EPS) < DUBINS_EPS);
             return DubinsAirplaneStateSpace::DubinsAirplanePath(DubinsAirplaneStateSpace::dubinsPathType[5], t, p, q);
         }
         return {};
@@ -216,13 +216,24 @@ double ompl::base::DubinsAirplaneStateSpace::distance(const State *state1, const
     DubinsAirplaneStateSpace::DubinsAirplanePath path;
 
     path = dubins(state1, state2);
-    if (isSymmetric_ && path.length() > dubins(state2, state1).length())
-        path = dubins(state2, state1);
+    double l = rho_ * path.length() / cos(path.climbAngle_);
 
     if (path.helix_)
-        return (rho_ * path.length() + path.helix_->length()) / cos(path.climbAngle_);
+        l = (rho_ * path.length() + path.helix_->length()) / cos(path.climbAngle_);
 
-    return rho_ * path.length() / cos(path.climbAngle_);
+    if (isSymmetric_)
+    {
+        auto path2 = dubins(state2, state1);
+        double l2 = rho_ * path2.length() / cos(path2.climbAngle_);
+
+        if (path2.helix_)
+            l2 = (rho_ * path2.length() + path2.helix_->length()) / cos(path2.climbAngle_);
+
+        if (l2 < l)
+            l = l2;
+    }
+
+    return l;
 }
 
 void ompl::base::DubinsAirplaneStateSpace::interpolate(const State *from, const State *to, const double t,
@@ -305,9 +316,45 @@ void ompl::base::DubinsAirplaneStateSpace::interpolate(const State *from, const 
                     break;
             }
         }
+        if (path.helix_)
+        {
+            v = seg / path.helix_->rho_;
+            phi = s->getYaw();
+            switch (path.helix_->type)
+            {
+                case DUBINS_LEFT:
+                    s->setXY(s->getX() + (sin(phi + v) - sin(phi)) * path.helix_->rho_,
+                             s->getY() - (cos(phi + v) - cos(phi)) * path.helix_->rho_);
+                    s->setYaw(phi + v);
+                    break;
+                case DUBINS_RIGHT:
+                    s->setXY(s->getX() - (sin(phi - v) - sin(phi)) * path.helix_->rho_,
+                             s->getY() + (cos(phi - v) - cos(phi)) * path.helix_->rho_);
+                    s->setYaw(phi - v);
+                    break;
+            }
+        }
     }
     else
     {
+        if (path.helix_)
+        {
+            v = seg / path.helix_->rho_;
+            phi = s->getYaw();
+            switch (path.helix_->type)
+            {
+                case DUBINS_LEFT:
+                    s->setXY(s->getX() + (sin(phi - v) - sin(phi)) * path.helix_->rho_,
+                             s->getY() - (cos(phi - v) - cos(phi)) * path.helix_->rho_);
+                    s->setYaw(phi - v);
+                    break;
+                case DUBINS_RIGHT:
+                    s->setXY(s->getX() - (sin(phi + v) - sin(phi)) * path.helix_->rho_,
+                             s->getY() + (cos(phi + v) - cos(phi)) * path.helix_->rho_);
+                    s->setYaw(phi + v);
+                    break;
+            }
+        }
         for (unsigned int i = 0; i < 3 && seg > 0; ++i)
         {
             v = std::min(seg, path.length_[2 - i]);
@@ -316,38 +363,19 @@ void ompl::base::DubinsAirplaneStateSpace::interpolate(const State *from, const 
             switch (path.type_[2 - i])
             {
                 case DUBINS_LEFT:
-                    s->setXY(s->getX() + (sin(phi + v) - sin(phi)) * rho_,
-                             s->getY() - (cos(phi + v) - cos(phi)) * rho_);
-                    s->setYaw(phi + v);
-                    break;
-                case DUBINS_RIGHT:
-                    s->setXY(s->getX() - (sin(phi - v) - sin(phi)) * rho_,
-                             s->getY() + (cos(phi - v) - cos(phi)) * rho_);
+                    s->setXY(s->getX() + (sin(phi - v) - sin(phi)) * rho_,
+                             s->getY() - (cos(phi - v) - cos(phi)) * rho_);
                     s->setYaw(phi - v);
                     break;
+                case DUBINS_RIGHT:
+                    s->setXY(s->getX() - (sin(phi + v) - sin(phi)) * rho_,
+                             s->getY() + (cos(phi + v) - cos(phi)) * rho_);
+                    s->setYaw(phi + v);
+                    break;
                 case DUBINS_STRAIGHT:
-                    s->setXY(s->getX() + (v * cos(phi)) * rho_, s->getY() + (v * sin(phi)) * rho_);
+                    s->setXY(s->getX() - (v * cos(phi)) * rho_, s->getY() - (v * sin(phi)) * rho_);
                     break;
             }
-        }
-    }
-
-    if (path.helix_)
-    {
-        v = seg / path.helix_->rho_;
-        phi = s->getYaw();
-        switch (path.helix_->type)
-        {
-            case DUBINS_LEFT:
-                s->setXY(s->getX() + (sin(phi + v) - sin(phi)) * path.helix_->rho_,
-                         s->getY() - (cos(phi + v) - cos(phi)) * path.helix_->rho_);
-                s->setYaw(phi + v);
-                break;
-            case DUBINS_RIGHT:
-                s->setXY(s->getX() - (sin(phi - v) - sin(phi)) * path.helix_->rho_,
-                         s->getY() + (cos(phi - v) - cos(phi)) * path.helix_->rho_);
-                s->setYaw(phi - v);
-                break;
         }
     }
 
